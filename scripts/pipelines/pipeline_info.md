@@ -1,6 +1,9 @@
 ## Kmer cov abundance of mock community ##
 
 1. Make mock community
+   - peanuts
+   - candy
+   - brussel sprouts
 
 2. Grind reads
 
