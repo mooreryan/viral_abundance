@@ -1,0 +1,10 @@
+# -mutation_dist poly4 3e-3 3.3e-8
+# univform 0.6% error rate (Dohm et al, 2008)
+-mutation_dist uniform 0.6
+-mutation_ratio 100 1
+-read_dist 250 uniform 10
+-mate_orientation FR
+-insert_dist 600 normal 10
+# good residues get 38 G(ood), residues from insertion or sub get 12 (-)
+-qual_levels 38 12
+-fastq_output 1

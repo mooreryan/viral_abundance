@@ -1,0 +1,1 @@
+blastn -db /home/moorer/public/artificial_metagenomes/blast_dbs/all10.fa -query /location/of/scafseq outfmt "6 qseqid stitle evalue sstart send length bitscore" > the_file
