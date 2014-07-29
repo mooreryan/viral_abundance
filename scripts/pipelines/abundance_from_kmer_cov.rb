@@ -101,5 +101,41 @@ blast_out.each do |line|
 end
 
   
+# create an array that lists viruses to be covered
+# and gives there length in an hash with ref name
+
+refs = {}
+ref_file = "/home/moorer/public/artificial_metagenomes/blast_dbs/all10.fa"
+FastaFile.open(ref_file, 'r').each_record do |ref_name, ref_seq|
+  ref_length = ref_seq.length
+  refs[ref_name] = ref_length
+end
+
+# compares contigs to the viruses
+
+########  Test Genome Stats ########
+ref_matrix = {}
+ref_covered = {}
+#genome_length.to_i = 70000
+hits.each do reference_check
+    if ref_matrix.keys.include? = reference_check[contig][:phage]
+      #need a step in here that checks to see if the whole thing is covered
+      #this step should pull the length from the hash of refs
+      ref_length = refs[reference_check[contig][:phage]]
+      #check to see if the length of the contig is close to the
+      #  genome length already
+      if reference_check[contig][:length] >= ref_length * 0.95 && reference_check[contig][:length] <= ref_length * 1.05
+        #inputs the ref_covered with reference name and true
+        # this can be checked later to make sure the genome is not already covered
+        #  records[name] = { length: sequence.length, cov: cov }
+        the_genome = refs[reference_check[contig][:phage]
+        the_contig = records[reference_check[contig]]
+        
+        ref_covered[the_genome] = { covered: true, status: "covered", contigs: the_contig, coverage: records[reference_check[contig][:cov]] }
+
+
+
+
+
   
   
