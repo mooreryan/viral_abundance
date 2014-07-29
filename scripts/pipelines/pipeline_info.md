@@ -42,3 +42,4 @@ with.
    - sum
 
 10. Use the cov stat to build rank abundance curve
+adddededs stuff
