@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-# Steven Smith -- Funny man
-
 ## reading in the scafSeq file
 
 begin
