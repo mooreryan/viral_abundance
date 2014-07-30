@@ -97,12 +97,17 @@ blast_out = check_status(blast_cmd).split("\n")
 hits = {}
 blast_out.each do |line|
   contig, phage, eval, start, stop, length = line.chomp.split("\t")
-  
-  if hits.has_key?(contig) && length > hits[contig][:length]
-    hits[contig] = { phage: phage, eval: eval, start: start, 
+  contig = contig.to_s
+  #puts hits[contig]
+  if hits.has_key?(contig)
+    if length > hits[contig][:length]
+      hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
+    else
+      puts "#{contig}  was a shorty with length: #{length}"
+    end          
   else
-    hits[contig] = { phage: phage, eval: eval, start: start, 
+    hits[contig] = { phage: phage, eval: "original", start: start, 
                      stop: stop, length: length }
   end
 end
@@ -153,7 +158,7 @@ hits.each do |reference_check|
       # check to see what the contigs are doing to try and figure out
       # why only one of the viruses is getting output   
       if length >= 600
-        puts "#{ref_phage}    #{contig}      #{length}     #{start}      #{stop}"
+        #puts "#{reference_check}"
       end
       #  check to see if the length of the contig is close to the
       #  genome length already
@@ -165,7 +170,7 @@ hits.each do |reference_check|
         # stores the contig name and coverage into ref_covered with the status of covered
         ref_covered[ref_phage] = { covered: true, status: "covered", contigs: contig, coverage: coverage }
       #checks to see if the contig is too long
-      elsif contig_stats[:length].to_i >= ref_length * 1.10
+      elsif length >= ref_length * 1.10
         coverage = records[contig[:cov]].to_i
         ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
       elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
@@ -178,7 +183,7 @@ hits.each do |reference_check|
       end
     end
   else
-    puts "duplicate"
+    #puts "Duplicate #{ref_phage}    #{contig}      #{length}     #{start}      #{stop}"
   end
 end
 puts ref_covered
