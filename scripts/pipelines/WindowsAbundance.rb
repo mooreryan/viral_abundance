@@ -82,6 +82,7 @@ n50_array.each_with_index do |num, outer_idx|
   end
 end
 
+puts n50_table
 ## blast the contigs and scaffolds
 # blastn = '/usr/bin/blastn'
 # blast_cmd = "#{blastn} -db /home/moorer/public/artificial_" << 
@@ -95,7 +96,8 @@ blast_cmd = "\"#{blastn}\" -db C:\\Research\\Virome\\BLASTdb\\all10.fa -query #{
   "qseqid stitle evalue sstart send length bitscore\" -evalue 100"
 
 blast_out = check_status(blast_cmd).split("\n")
-
+#DELETE THIS LINE, though it does show that blast is missing some good shit
+puts blast_out
 ## get the top hit (based on alignment length)
 hits = {}
 blast_out.each do |line|
@@ -134,6 +136,10 @@ end
 
 ref_covered = {}
 #genome_length.to_i = 70000
+############ TODO ###########
+# Scaffold 61 is a contig that is the same size as the genome and is not
+# making its way to the hits hash, fix this, probably a blast thing
+puts hits["scaffold61"]
 hits.each do |reference_check|
   ######## outputs ########
   # a 2 component array with 0 as contig name and 1 as hash with:
@@ -155,23 +161,16 @@ hits.each do |reference_check|
       stop = contig_stats[:stop].to_i
       length = contig_stats[:length].to_i
       coverage = records[contig][:cov].to_i
-      # check to see what the contigs are doing to try and figure out
-      # why only one of the viruses is getting output   
-      if length >= 600
-        #puts "#{reference_check}"
-      end
       #  check to see if the length of the contig is close to the
       #  genome length already
       if length >= ref_length * 0.90 && length <= ref_length * 1.10
-        # inputs the ref_covered with reference name and true
-        # this can be checked later to make sure the genome is not already covered
-        #  records[name] = { length: sequence.length, cov: cov }
-        # puts records[contig]
         # stores the contig name and coverage into ref_covered with the status of covered
+        # this hash contains covered genomes only
         ref_covered[ref_phage] = { covered: true, status: "covered", contigs: contig, coverage: coverage }
       #checks to see if the contig is too long
       elsif length >= ref_length * 1.10
         coverage = records[contig[:cov]].to_i
+        # puts genome into ref_covered with warning that contig is oversized
         ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
       elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
         if start > stop
@@ -179,12 +178,14 @@ hits.each do |reference_check|
         else
           ref_matrix[ref_phage][start]..ref_matrix[ref_phage][stop] = coverage
         end
-        # matcrix coverage check
+        # matrix coverage check and math for coverage go here
       end
     end
   else
-    #puts "Duplicate #{ref_phage}    #{contig}      #{length}     #{start}      #{stop}"
+    #puts "Duplicate #{ref_phage}    #{contig}      #{contig_stats[:length].to_i}     #{start}      #{stop}"
   end
 end
-puts ref_covered
+ref_covered.each do |covered_out|
+  puts covered_out
+end
 
