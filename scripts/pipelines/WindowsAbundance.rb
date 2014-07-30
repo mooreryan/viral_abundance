@@ -148,10 +148,16 @@ hits.each do |reference_check|
       # make some values to use for coverage check
       start = contig_stats[:start].to_i
       stop = contig_stats[:stop].to_i
+      length = contig_stats[:length].to_i
       coverage = records[contig][:cov].to_i
+      # check to see what the contigs are doing to try and figure out
+      # why only one of the viruses is getting output   
+      if length >= 600
+        puts "#{ref_phage}    #{contig}      #{length}     #{start}      #{stop}"
+      end
       #  check to see if the length of the contig is close to the
       #  genome length already
-      if contig_stats[:length].to_i >= ref_length * 0.90 && contig_stats[:length].to_i <= ref_length * 1.10
+      if length >= ref_length * 0.90 && length <= ref_length * 1.10
         # inputs the ref_covered with reference name and true
         # this can be checked later to make sure the genome is not already covered
         #  records[name] = { length: sequence.length, cov: cov }
@@ -171,6 +177,8 @@ hits.each do |reference_check|
         # matcrix coverage check
       end
     end
+  else
+    puts "duplicate"
   end
 end
 puts ref_covered
