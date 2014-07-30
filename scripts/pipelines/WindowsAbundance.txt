@@ -26,6 +26,8 @@ elsif !File.exist? opts[:scaf_seq]
   Trollop.die :scaf_seq, "The scafSeq file must exist"
 end
 
+scaf_seq = opts[:scaf_seq]
+
 # catches unix errors (not ruby errors). dies if exit status other
 # than 0, else return std. out
 def check_status cmd
@@ -43,18 +45,20 @@ total_bases = 0
 contig_lengths = []
 # records : { contig_name => { length => n, cov => x } }
 records = {}
-die_string = "Fasta headers aren't unique in #{scaf_seq}!\n#{name}" <<
-  " is repeated."
+
 FastaFile.open(scaf_seq, 'r').each_record do |header, sequence|
   # basic stats
   name, cov = header.split
   name = name.to_sym
   cov = cov.to_f
   
+  die_string = "Fasta headers aren't unique in #{scaf_seq}!\n#{name}" <<
+  " is repeated."
+
   if records.has_key?(name)
     abort(die_string)
   else
-    records[name] = { length: sequence.length, cov: cov }
+    records[name.to_s] = { length: sequence.length, cov: cov }
   end
 
   # for the N50 table
@@ -83,8 +87,8 @@ end
 # blast_cmd = "#{blastn} -db /home/moorer/public/artificial_" << 
 #   "metagenomes/blast_dbs/all10.fa -query #{scaf_seq} outfmt \"6 " <<
 #   "qseqid stitle evalue sstart send length bitscore\""
-blastn = 'C:\Program Files\NCBI\blast-2.2.29+\bin\blastn.exe'
-blast_cmd = "#{blastn} -db C:\\Research\\Virome\\BLASTdb\\all10.fa -query #{scaf_seq} outfmt \"6 " <<
+blastn = 'C:\Program Files\NCBI\blast\bin\blastn.exe'
+blast_cmd = "\"#{blastn}\" -db C:\\Research\\Virome\\BLASTdb\\all10.fa -query #{scaf_seq} -outfmt \"6 " <<
   "qseqid stitle evalue sstart send length bitscore\""
 
 blast_out = check_status(blast_cmd).split("\n")
@@ -108,46 +112,66 @@ end
 # and gives there length in an hash with ref name
 
 refs = {}
-ref_file = "/home/moorer/public/artificial_metagenomes/blast_dbs/all10.fa"
+ref_file = "C:\\Research\\Virome\\BLASTdb\\all10.fa"
 FastaFile.open(ref_file, 'r').each_record do |ref_name, ref_seq|
   ref_length = ref_seq.length
-  refs[ref_name] = ref_length
+  refs[ref_name] = ref_length.to_i
 end
-
-# compares contigs to the viruses
-
-########  Test Genome Stats ########
+#  Creates an empty coverage matrix for each reference
 ref_matrix = {}
+refs.each do |phage, length|
+  # it might be better to do the math later and insert true here
+  # if using true, then the array could be more organized
+  ref_matrix[phage] = Array.new(length, 0)
+end
+# compares contigs to the viruses
+########  Test Genome Stats ########
+
 ref_covered = {}
 #genome_length.to_i = 70000
-hits.each do reference_check
-  print reference_check
-  ref_phage = reference_check[contig][:phage]
-  if ref_covered[]
-    if ref_matrix.has_key?(ref_phage)
+hits.each do |reference_check|
+  ######## outputs ########
+  # a 2 component array with 0 as contig name and 1 as hash with:
+  # ["scaffold1", {:phage=>"gi|526244935|ref|NC_021864.1| Puniceispirillum phage HMO-2011, complete genome", :eval=>"0.0", :start=>"11
+  # 41", :stop=>"11521", :length=>"381"}]
+  # gives contig name
+  contig = reference_check[0].chomp
+  # copies array from rcheck
+  contig_stats = reference_check[1]
+  #  assigns the phage to work with
+  ref_phage = contig_stats[:phage].to_s
+  unless ref_covered.has_key?(ref_phage) 
+    if refs.has_key?(ref_phage)
       #need a step in here that checks to see if the whole thing is covered
       #this step should pull the length from the hash of refs
-      ref_length = refs[ref_phage]
-      #check to see if the length of the contig is close to the
+      ref_length = refs[ref_phage].to_i
+      # make some values to use for coverage check
+      start = contig_stats[:start].to_i
+      stop = contig_stats[:stop].to_i
+      coverage = records[contig][:cov].to_i
+      #  check to see if the length of the contig is close to the
       #  genome length already
-      if reference_check[contig][:length] >= ref_length * 0.95 && reference_check[contig][:length] <= ref_length * 1.05
-        #inputs the ref_covered with reference name and true
+      if contig_stats[:length].to_i >= ref_length * 0.95 && contig_stats[:length].to_i <= ref_length * 1.05
+        # inputs the ref_covered with reference name and true
         # this can be checked later to make sure the genome is not already covered
         #  records[name] = { length: sequence.length, cov: cov }
-        the_genome = refs[ref_phage]
-        the_contig = records[reference_check[contig]]
+        # puts records[contig]
         # stores the contig name and coverage into ref_covered with the status of covered
-        ref_covered[the_genome] = { covered: true, status: "covered", contigs: the_contig, coverage: records[reference_check[contig][:cov]] }
+        ref_covered[ref_phage] = { covered: true, status: "covered", contigs: contig, coverage: coverage }
       #checks to see if the contig is too long
-      elsif reference_check[contig][:length] >= ref_length * 1.05
-        the_contig = records[reference_check[contig]]
+      elsif contig_stats[:length].to_i >= ref_length * 1.05
+        coverage = records[contig[:cov]].to_i
+        ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
+      elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
+        if start > stop
+          ref_matrix[ref_phage][stop]..ref_matrix[ref_phage][start] = coverage
+        else
+          ref_matrix[ref_phage][start]..ref_matrix[ref_phage][stop] = coverage
+        end
+        # matcrix coverage check
       end
     end
   end
 end
-        
+puts ref_covered
 
-
-
-  
-  
