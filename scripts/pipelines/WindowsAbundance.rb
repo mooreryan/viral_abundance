@@ -88,8 +88,11 @@ end
 #   "metagenomes/blast_dbs/all10.fa -query #{scaf_seq} outfmt \"6 " <<
 #   "qseqid stitle evalue sstart send length bitscore\""
 blastn = 'C:\Program Files\NCBI\blast\bin\blastn.exe'
+######## TODO ########
+#the blast algorithm is cutting off some good contigs, lightening the
+#stringency might help.
 blast_cmd = "\"#{blastn}\" -db C:\\Research\\Virome\\BLASTdb\\all10.fa -query #{scaf_seq} -outfmt \"6 " <<
-  "qseqid stitle evalue sstart send length bitscore\""
+  "qseqid stitle evalue sstart send length bitscore\" -evalue 100"
 
 blast_out = check_status(blast_cmd).split("\n")
 
@@ -98,13 +101,10 @@ hits = {}
 blast_out.each do |line|
   contig, phage, eval, start, stop, length = line.chomp.split("\t")
   contig = contig.to_s
-  #puts hits[contig]
   if hits.has_key?(contig)
     if length > hits[contig][:length]
       hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
-    else
-      puts "#{contig}  was a shorty with length: #{length}"
     end          
   else
     hits[contig] = { phage: phage, eval: "original", start: start, 
