@@ -26,6 +26,8 @@ elsif !File.exist? opts[:scaf_seq]
   Trollop.die :scaf_seq, "The scafSeq file must exist"
 end
 
+scaf_seq = opts[:scaf_seq]
+
 # catches unix errors (not ruby errors). dies if exit status other
 # than 0, else return std. out
 def check_status cmd
@@ -43,18 +45,20 @@ total_bases = 0
 contig_lengths = []
 # records : { contig_name => { length => n, cov => x } }
 records = {}
-die_string = "Fasta headers aren't unique in #{scaf_seq}!\n#{name}" <<
-  " is repeated."
+
 FastaFile.open(scaf_seq, 'r').each_record do |header, sequence|
   # basic stats
   name, cov = header.split
   name = name.to_sym
   cov = cov.to_f
+
+  die_string = "Fasta headers aren't unique in #{scaf_seq}!\n#{name}" <<
+  " is repeated."
   
   if records.has_key?(name)
     abort(die_string)
   else
-    records[name] = { length: sequence.length, cov: cov }
+    records[name.to_s] = { length: sequence.length, cov: cov }
   end
 
   # for the N50 table
@@ -78,11 +82,17 @@ n50_array.each_with_index do |num, outer_idx|
   end
 end
 
+puts "_____________________"
+puts "       N table       "
+puts "_____________________\n\n"
+puts n50_table
 ## blast the contigs and scaffolds
 blastn = '/usr/bin/blastn'
 blast_cmd = "#{blastn} -db /home/moorer/public/artificial_" << 
-  "metagenomes/blast_dbs/all10.fa -query #{scaf_seq} outfmt \"6 " <<
-  "qseqid stitle evalue sstart send length bitscore\""
+  "metagenomes/blast_dbs/all10.fa -outfmt \"6 " <<
+  "qseqid stitle evalue sstart send length bitscore\"" <<
+  " -evalue 100 -penalty -2 -reward 2 -gapopen 0 -gapextend 4"
+
 
 blast_out = check_status(blast_cmd).split("\n")
 
@@ -90,16 +100,22 @@ blast_out = check_status(blast_cmd).split("\n")
 hits = {}
 blast_out.each do |line|
   contig, phage, eval, start, stop, length = line.chomp.split("\t")
-  
-  if hits.has_key?(contig) && length > hits[contig][:length]
-    hits[contig] = { phage: phage, eval: eval, start: start, 
+  contig = contig.to_s
+  # if length.to_i > 1000
+  #   puts line
+  # end
+  if hits.has_key?(contig)
+    if length.to_i >= hits[contig][:length].to_i
+      #puts "#{hits[contig][:length]}  wrote over with this one  #{length}"
+      hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
+    end          
   else
     hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
   end
 end
-
+hits = hits.sort_by { |contig, details| details[:length]}
   
 # create an array that lists viruses to be covered
 # and gives there length in an hash with ref name
@@ -108,34 +124,83 @@ refs = {}
 ref_file = "/home/moorer/public/artificial_metagenomes/blast_dbs/all10.fa"
 FastaFile.open(ref_file, 'r').each_record do |ref_name, ref_seq|
   ref_length = ref_seq.length
-  refs[ref_name] = ref_length
+  refs[ref_name] = ref_length.to_i
 end
 
-# compares contigs to the viruses
+#  Creates an empty coverage matrix for each reference
+ref_matrix = {}
+refs.each do |phage, length|
+  # it might be better to do the math later and insert true here
+  # if using true, then the array could be more organized
+  ref_matrix[phage] = Array.new(length, 0)
+end
+
+# A hash that will house covered genomes for output
+ref_covered = {}
 
 ########  Test Genome Stats ########
-ref_matrix = {}
-ref_covered = {}
-#genome_length.to_i = 70000
-hits.each do reference_check
-    if ref_matrix.keys.include? = reference_check[contig][:phage]
-      #need a step in here that checks to see if the whole thing is covered
-      #this step should pull the length from the hash of refs
-      ref_length = refs[reference_check[contig][:phage]]
-      #check to see if the length of the contig is close to the
-      #  genome length already
-      if reference_check[contig][:length] >= ref_length * 0.95 && reference_check[contig][:length] <= ref_length * 1.05
-        #inputs the ref_covered with reference name and true
-        # this can be checked later to make sure the genome is not already covered
-        #  records[name] = { length: sequence.length, cov: cov }
-        the_genome = refs[reference_check[contig][:phage]
-        the_contig = records[reference_check[contig]]
-        
-        ref_covered[the_genome] = { covered: true, status: "covered", contigs: the_contig, coverage: records[reference_check[contig][:cov]] }
+hits.each do |reference_check|
+  ######## outputs from reference_check ########
+  # a 2 component array with 0 as contig name and 1 as hash with:
+  # ["scaffold1", {:phage=>"gi|526244935|ref|NC_021864.1| Puniceispirillum phage HMO-2011, complete genome", :eval=>"0.0", :start=>"11
+  # 41", :stop=>"11521", :length=>"381"}]
+  # gives contig name
+  contig = reference_check[0].chomp
+  # copies array from reference_check
+  contig_stats = reference_check[1]
+  #  assigns the phage to work with
+  ref_phage = contig_stats[:phage].to_s
+  # checks the table to see if the phage is covered yet, only happens from giant contigs, so far
+  if ref_covered.has_key?(ref_phage) == false
+    # makes sure that your reference has a hit
+    if refs.has_key?(ref_phage)
+      # takes your reference and gets the length for reference
+      ref_length = refs[ref_phage].to_i
+      # make some values to use for coverage check
+      start = contig_stats[:start].to_i
+      stop = contig_stats[:stop].to_i
+      length = contig_stats[:length].to_i
+      coverage = records[contig][:cov].to_i
+      #  check to see if the length of the contig is close to genome length already
+      if length >= ref_length * 0.90 && length <= ref_length * 1.10
+        # stores the contig name and coverage into ref_covered with the status of covered
+        # this hash contains covered genomes only
+        ref_covered[ref_phage] = { covered: true, status: "covered", contigs: contig, coverage: coverage }
+      #checks to see if the contig is too long
+      elsif length >= ref_length * 1.10
+        coverage = records[contig[:cov]].to_i
+        # puts genome into ref_covered with warning that contig is oversized
+        ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
+      elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
+        # Adds start and stop into the matrix and fills in the missing parts
+        if start > stop
+           (stop..start).each do |i|
+            ref_matrix[ref_phage][i] = coverage
+          end
+        else
+          (start..stop).each do |i|
+            ref_matrix[ref_phage][i] = coverage
+          end
+        end
+      end
+    end
+  else
+    #puts "Duplicate #{ref_phage}    #{contig}      #{contig_stats[:length].to_i}     #{start}      #{stop}"
+  end
+end
 
-
-
-
-
-  
-  
+puts "_____________________"
+puts "   Covered Genomes   "
+puts "_____________________\n\n"
+ref_covered.each do |covered_out|
+  puts covered_out
+end
+# matrix coverage check and math for coverage go here
+refs.each do |phage, length|
+  if ref_covered.has_key?(phage) == false
+    ref_matrix[phage].delete(0)
+    coverage = ref_matrix[phage].inject(0.0) { |sum, el| sum + el } / ref_matrix[phage].size
+    percent = ref_matrix[phage].size
+    puts "#{phage} :   #{coverage}    #{percent}/#{length}"
+  end
+end
