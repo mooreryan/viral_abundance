@@ -19,12 +19,20 @@ opts = Trollop.options do
   Options:
   EOS
   opt :scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string
+  opt(:blast, 'Location of your blast binary', type: :string,
+      default: '/usr/local/bin/blastn')
+  opt(:blast_db, 'Path to blast db', type: :string,
+      default: '/Users/ryanmoore/sandbox/blast_dbs/all10.fa')
 end
 
 if opts[:scaf_seq].nil?
   Trollop.die :scaf_seq, "You must enter a scafSeq file name"
 elsif !File.exist? opts[:scaf_seq]
   Trollop.die :scaf_seq, "The scafSeq file must exist"
+end
+
+if !File.exist? opts[:blast_db]
+  Trollop.die :blast_db, "The specified file doesn't exist!"
 end
 
 def basic_contig_stats(scaf_seq_file)
@@ -72,10 +80,10 @@ def make_n50_table(total_bases, contig_lengths)
   n50_table
 end
 
-def blast(scaf_seq_file)
+def blast(blast, blast_db, scaf_seq_file)
   blastn = '/usr/bin/blastn'
-  blast_cmd = "#{blastn} -db /home/moorer/public/artificial_" << 
-    "metagenomes/blast_dbs/all10.fa -query #{scaf_seq_file} outfmt " <<
+  blast_cmd = "#{blast} -db #{blast_db}" << 
+    "-query #{scaf_seq_file} -outfmt " <<
     "\"6 qseqid stitle evalue sstart send length bitscore\""
 
   # run command, exit if errors
@@ -113,7 +121,7 @@ records, total_bases, contig_lengths = basic_contig_stats(opts[:scaf_seq])
 n50_table = make_n50_table(total_bases, contig_lengths)
 
 ## step 6: blast the contigs and scaffolds
-blast_out = blast(opts[:scaf_seq])
+blast_out = blast(opts[:blast], opts[:blast_db], opts[:scaf_seq])
 
 ## step 7: get the top hit (based on alignment length)
 hits = top_hit(blast_out)
