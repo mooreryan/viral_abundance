@@ -129,15 +129,18 @@ FastaFile.open(ref_file, 'r').each_record do |ref_name, ref_seq|
   ref_length = ref_seq.length
   refs[ref_name] = ref_length.to_i
 end
+
+# A hash that will house covered genomes for output
+ref_covered = {}
 #  Creates an empty coverage matrix for each reference
 ref_matrix = {}
 refs.each do |phage, length|
   # it might be better to do the math later and insert true here
   # if using true, then the array could be more organized
   ref_matrix[phage] = Array.new(length, 0)
+  ref_covered[phage] = { covered: false, status: "No Coverage", contigs: "", coverage: nil }
 end
-# A hash that will house covered genomes for output
-ref_covered = {}
+
 ########  Test Genome Stats ########
 hits.each do |reference_check|
   ######## outputs from reference_check ########
@@ -151,7 +154,7 @@ hits.each do |reference_check|
   #  assigns the phage to work with
   ref_phage = contig_stats[:phage].to_s
   # checks the table to see if the phage is covered yet, only happens from giant contigs, so far
-  if ref_covered.has_key?(ref_phage) == false
+  if (ref_covered.has_key?(ref_phage) == false) or (ref_covered[ref_phage][:covered] == false)
     # makes sure that your reference has a hit
     if refs.has_key?(ref_phage)
       # takes your reference and gets the length for reference
@@ -170,17 +173,21 @@ hits.each do |reference_check|
       elsif length >= ref_length * 1.10
         coverage = records[contig[:cov]].to_i
         # puts genome into ref_covered with warning that contig is oversized
-        ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
+        ref_covered[ref_phage] = { covered: false, status: "Oversized Contig", contigs: contig, coverage: coverage }
       elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
         # Adds start and stop into the matrix and fills in the missing parts
         if start > stop
-           (stop..start).each do |i|
+          (stop..start).each do |i|
             ref_matrix[ref_phage][i] = coverage
           end
+          contigs = ref_covered[ref_phage][:contigs] + "," + contig
+          ref_covered[ref_phage] = { covered: false, status: "Partial Coverage", contigs: contigs, coverage: nil }
         else
           (start..stop).each do |i|
             ref_matrix[ref_phage][i] = coverage
           end
+          contigs = ref_covered[ref_phage][:contigs] + "," + contig
+          ref_covered[ref_phage] = { covered: false, status: "Partial Coverage", contigs: contigs, coverage: nil }
         end
       end
     end
@@ -193,14 +200,29 @@ puts "_____________________"
 puts "   Covered Genomes   "
 puts "_____________________\n\n"
 ref_covered.each do |covered_out|
-  puts covered_out
-end
-# matrix coverage check and math for coverage go here
-refs.each do |phage, length|
-  if ref_covered.has_key?(phage) == false
-    ref_matrix[phage].delete(0)
-    coverage = ref_matrix[phage].inject(0.0) { |sum, el| sum + el } / ref_matrix[phage].size
-    percent = ref_matrix[phage].size
-    puts "#{phage} :   #{coverage}    #{percent}/#{length}"
+  genome = covered_out[0]
+  length = refs[genome]
+  details = covered_out[1]
+  covered = details[:covered]
+  status = details[:status]
+  contigs = details[:contigs]
+  coverage = details[:coverage]
+  if ref_covered[genome][:covered] == false
+    ref_matrix[genome].delete(0)
+    coverage = ref_matrix[genome].inject(0.0) { |sum, el| sum + el } / ref_matrix[genome].size
+    rix_sz = ref_matrix[genome].size
+    puts "Genome : #{genome}   Result : #{status}   Coverage : #{coverage}    Ratio cv/uncv: #{rix_sz}/#{length}"
+  else
+    puts "Genome : #{genome}   Result : #{status}   Coverage : #{coverage}"
   end
+end
+
+puts "_____________________"
+puts "    Contigs Table    "
+puts "_____________________\n\n"
+ref_covered.each do |covered_out|
+  genome = covered_out[0]
+  details = covered_out[1]
+  contigs = details[:contigs]
+  puts "Genome  : #{genome} \nContigs : #{contigs}"
 end
