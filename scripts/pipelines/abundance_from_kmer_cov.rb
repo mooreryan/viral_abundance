@@ -19,7 +19,7 @@ opts = Trollop.options do
   Options:
   EOS
   opt(:scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string,
-      default: '/Users/ryanmoore/sandbox/linear_grinder.scafSeq')
+      default: '/Users/ryanmoore/sandbox/test.scafSeq')
   opt(:blast, 'Location of your blast binary', type: :string,
       default: '/usr/local/bin/blastn')
   opt(:blast_db, 'Path to blast db', type: :string,
@@ -40,13 +40,19 @@ if !File.exist? opts[:blast_db]
   Trollop.die :blast_db, "The specified file doesn't exist!"
 end
 
+def parse_fname(fname)
+  { dir: File.dirname(fname), 
+    base: File.basename(fname, File.extname(fname)), 
+    ext: File.extname(fname) }
+end
+
+fname_map = parse_fname(opts[:scaf_seq])
+
 def basic_contig_stats(scaf_seq_file)
   total_bases = 0
   contig_lengths = []
   # records : { contig_name => { length => n, cov => x } }
   records = {}
-  die_string = "Fasta headers aren't unique in #{scaf_seq_file}!" <<
-    "\n#{name} is repeated."
   FastaFile.open(scaf_seq_file, 'r').each_record do |header, sequence|
     # basic stats
     name, cov = header.split
@@ -56,6 +62,8 @@ def basic_contig_stats(scaf_seq_file)
 
     # add info to records
     if records.has_key?(name)
+      die_string = "Fasta headers aren't unique in #{scaf_seq_file}!" <<
+        "\n#{name} is repeated."
       abort(die_string)
     else
       records[name] = { length: read_len, cov: cov }
@@ -68,7 +76,7 @@ def basic_contig_stats(scaf_seq_file)
   [records, total_bases, contig_lengths]
 end
 
-def make_n50_table(total_bases, contig_lengths)
+def write_n50_table(total_bases, contig_lengths)
   n50_table = []
   n50_array = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
   n50_array.each_with_index do |num, outer_idx|
@@ -87,7 +95,7 @@ end
 
 def blast(blast, blast_db, scaf_seq_file)
   blastn = '/usr/bin/blastn'
-  blast_cmd = "#{blast} -db #{blast_db}" << 
+  blast_cmd = "#{blast} -db #{blast_db} " << 
     "-query #{scaf_seq_file} -outfmt " <<
     "\"6 qseqid stitle evalue sstart send length bitscore\""
 
@@ -105,13 +113,13 @@ end
 
 def top_hit(blast_out)
   hits = {}
-  blast_out.each do |line|
+  blast_out.split("\n").each do |line|
     contig, phage, eval, start, stop, length = line.chomp.split("\t")
     
     if hits.has_key?(contig) && length > hits[contig][:length]
       hits[contig] = { phage: phage, eval: eval, start: start, 
         stop: stop, length: length }
-    else
+    elsif !hits.has_key?(contig)
       hits[contig] = { phage: phage, eval: eval, start: start, 
         stop: stop, length: length }
     end
@@ -122,11 +130,27 @@ end
 #### main ####
 
 ## step 5: get stats from assembly
+t = Time.now
+$stderr.print 'Calculating assembly stats...'
 records, total_bases, contig_lengths = basic_contig_stats(opts[:scaf_seq])
-n50_table = make_n50_table(total_bases, contig_lengths)
+
+# write n50 table to disk
+n50_f = File.join(fname_map[:dir], "#{fname_map[:base]}.n50_table.txt")
+File.open(n50_f, 'w') do |f|
+  f.puts %w[level length count].join("\t")
+  f.puts write_n50_table(total_bases, contig_lengths)
+end
+$stderr.puts "Done! (time: #{Time.now - t})"
 
 ## step 6: blast the contigs and scaffolds
+t = Time.now
+$stderr.print 'Blasting sequences...'
 blast_out = blast(opts[:blast], opts[:blast_db], opts[:scaf_seq])
+$stderr.puts "Done! (time: #{Time.now - t})"
 
 ## step 7: get the top hit (based on alignment length)
+t = Time.now
+$stderr.print 'Getting top hits...'
+# { contig => { :phage, :eval, :start, :stop, :length }
 hits = top_hit(blast_out)
+$stderr.puts "Done! (time: #{Time.now - t})"
