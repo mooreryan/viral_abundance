@@ -82,6 +82,9 @@ n50_array.each_with_index do |num, outer_idx|
   end
 end
 
+puts "_____________________"
+puts "       N table       "
+puts "_____________________\n\n"
 puts n50_table
 ## blast the contigs and scaffolds
 # blastn = '/usr/bin/blastn'
@@ -91,20 +94,23 @@ puts n50_table
 blastn = 'C:\Program Files\NCBI\blast\bin\blastn.exe'
 ######## TODO ########
 #the blast algorithm is cutting off some good contigs, lightening the
-#stringency might help.
+#stringency might help.  has been edited, just keep testing this one
 blast_cmd = "\"#{blastn}\" -db C:\\Research\\Virome\\BLASTdb\\all10.fa -query #{scaf_seq} -outfmt \"6 " <<
-  "qseqid stitle evalue sstart send length bitscore\" -evalue 100"
+  "qseqid stitle evalue sstart send length bitscore\" -evalue 100 -penalty -2 -reward 2 -gapopen 0 -gapextend 4"
 
 blast_out = check_status(blast_cmd).split("\n")
 #DELETE THIS LINE, though it does show that blast is missing some good shit
-puts blast_out
 ## get the top hit (based on alignment length)
 hits = {}
 blast_out.each do |line|
   contig, phage, eval, start, stop, length = line.chomp.split("\t")
   contig = contig.to_s
+  # if length.to_i > 1000
+  #   puts line
+  # end
   if hits.has_key?(contig)
-    if length > hits[contig][:length]
+    if length.to_i >= hits[contig][:length].to_i
+      #puts "#{hits[contig][:length]}  wrote over with this one  #{length}"
       hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
     end          
@@ -113,11 +119,9 @@ blast_out.each do |line|
                      stop: stop, length: length }
   end
 end
-
-  
+ 
 # create an array that lists viruses to be covered
 # and gives there length in an hash with ref name
-
 refs = {}
 ref_file = "C:\\Research\\Virome\\BLASTdb\\all10.fa"
 FastaFile.open(ref_file, 'r').each_record do |ref_name, ref_seq|
@@ -131,38 +135,32 @@ refs.each do |phage, length|
   # if using true, then the array could be more organized
   ref_matrix[phage] = Array.new(length, 0)
 end
-# compares contigs to the viruses
-########  Test Genome Stats ########
-
+# A hash that will house covered genomes for output
 ref_covered = {}
-#genome_length.to_i = 70000
-############ TODO ###########
-# Scaffold 61 is a contig that is the same size as the genome and is not
-# making its way to the hits hash, fix this, probably a blast thing
-puts hits["scaffold61"]
+########  Test Genome Stats ########
 hits.each do |reference_check|
-  ######## outputs ########
+  ######## outputs from reference_check ########
   # a 2 component array with 0 as contig name and 1 as hash with:
   # ["scaffold1", {:phage=>"gi|526244935|ref|NC_021864.1| Puniceispirillum phage HMO-2011, complete genome", :eval=>"0.0", :start=>"11
   # 41", :stop=>"11521", :length=>"381"}]
   # gives contig name
   contig = reference_check[0].chomp
-  # copies array from rcheck
+  # copies array from reference_check
   contig_stats = reference_check[1]
   #  assigns the phage to work with
   ref_phage = contig_stats[:phage].to_s
+  # checks the table to see if the phage is covered yet, only happens from giant contigs, so far
   if ref_covered.has_key?(ref_phage) == false
+    # makes sure that your reference has a hit
     if refs.has_key?(ref_phage)
-      #need a step in here that checks to see if the whole thing is covered
-      #this step should pull the length from the hash of refs
+      # takes your reference and gets the length for reference
       ref_length = refs[ref_phage].to_i
       # make some values to use for coverage check
       start = contig_stats[:start].to_i
       stop = contig_stats[:stop].to_i
       length = contig_stats[:length].to_i
       coverage = records[contig][:cov].to_i
-      #  check to see if the length of the contig is close to the
-      #  genome length already
+      #  check to see if the length of the contig is close to genome length already
       if length >= ref_length * 0.90 && length <= ref_length * 1.10
         # stores the contig name and coverage into ref_covered with the status of covered
         # this hash contains covered genomes only
@@ -173,6 +171,8 @@ hits.each do |reference_check|
         # puts genome into ref_covered with warning that contig is oversized
         ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
       elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
+        # Adds start and stop into the matrix and fills in the missing parts
+        # the lengths should be sorted before doing this
         if start > stop
           ref_matrix[ref_phage][stop]..ref_matrix[ref_phage][start] = coverage
         else
@@ -185,6 +185,9 @@ hits.each do |reference_check|
     #puts "Duplicate #{ref_phage}    #{contig}      #{contig_stats[:length].to_i}     #{start}      #{stop}"
   end
 end
+puts "_____________________"
+puts "   Covered Genomes   "
+puts "_____________________\n\n"
 ref_covered.each do |covered_out|
   puts covered_out
 end
