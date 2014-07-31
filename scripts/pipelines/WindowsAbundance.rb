@@ -119,6 +119,7 @@ blast_out.each do |line|
                      stop: stop, length: length }
   end
 end
+hits = hits.sort_by { |contig, details| details[:length]}
  
 # create an array that lists viruses to be covered
 # and gives there length in an hash with ref name
@@ -178,13 +179,23 @@ hits.each do |reference_check|
         else
           ref_matrix[ref_phage][start]..ref_matrix[ref_phage][stop] = coverage
         end
-        # matrix coverage check and math for coverage go here
       end
     end
   else
     #puts "Duplicate #{ref_phage}    #{contig}      #{contig_stats[:length].to_i}     #{start}      #{stop}"
   end
 end
+# matrix coverage check and math for coverage go here
+refs.each do |phage, length|
+  if ref_covered.has_key?(phage) == false
+    ref_matrix[phage].delete(0)
+    coverage = ref_matrix[phage].inject(0.0) { |sum, el| sum + el } / ref_matrix[phage].size
+    puts "#{phage} :   #{coverage}"
+  end
+end
+
+
+
 puts "_____________________"
 puts "   Covered Genomes   "
 puts "_____________________\n\n"
