@@ -115,7 +115,7 @@ blast_out.each do |line|
                      stop: stop, length: length }
     end          
   else
-    hits[contig] = { phage: phage, eval: "original", start: start, 
+    hits[contig] = { phage: phage, eval: eval, start: start, 
                      stop: stop, length: length }
   end
 end
@@ -173,11 +173,14 @@ hits.each do |reference_check|
         ref_covered[ref_phage] = { covered: false, status: "oversized contig", contigs: contig, coverage: coverage }
       elsif ref_matrix[ref_phage][start] == 0 && ref_matrix[ref_phage][stop] == 0
         # Adds start and stop into the matrix and fills in the missing parts
-        # the lengths should be sorted before doing this
         if start > stop
-          ref_matrix[ref_phage][stop]..ref_matrix[ref_phage][start] = coverage
+           (stop..start).each do |i|
+            ref_matrix[ref_phage][i] = coverage
+          end
         else
-          ref_matrix[ref_phage][start]..ref_matrix[ref_phage][stop] = coverage
+          (start..stop).each do |i|
+            ref_matrix[ref_phage][i] = coverage
+          end
         end
       end
     end
@@ -185,20 +188,19 @@ hits.each do |reference_check|
     #puts "Duplicate #{ref_phage}    #{contig}      #{contig_stats[:length].to_i}     #{start}      #{stop}"
   end
 end
-# matrix coverage check and math for coverage go here
-refs.each do |phage, length|
-  if ref_covered.has_key?(phage) == false
-    ref_matrix[phage].delete(0)
-    coverage = ref_matrix[phage].inject(0.0) { |sum, el| sum + el } / ref_matrix[phage].size
-    puts "#{phage} :   #{coverage}"
-  end
-end
-
-
 
 puts "_____________________"
 puts "   Covered Genomes   "
 puts "_____________________\n\n"
 ref_covered.each do |covered_out|
   puts covered_out
+end
+# matrix coverage check and math for coverage go here
+refs.each do |phage, length|
+  if ref_covered.has_key?(phage) == false
+    ref_matrix[phage].delete(0)
+    coverage = ref_matrix[phage].inject(0.0) { |sum, el| sum + el } / ref_matrix[phage].size
+    percent = ref_matrix[phage].size
+    puts "#{phage} :   #{coverage}    #{percent}/#{length}"
+  end
 end
