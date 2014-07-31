@@ -188,4 +188,3 @@ end
 ref_covered.each do |covered_out|
   puts covered_out
 end
-
