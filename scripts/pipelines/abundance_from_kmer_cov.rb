@@ -138,7 +138,6 @@ records, total_bases, contig_lengths = basic_contig_stats(opts[:scaf_seq])
 n50_f = File.join(fname_map[:dir], "#{fname_map[:base]}.n50_table.txt")
 File.open(n50_f, 'w') do |f|
   f.puts %w[level length count].join("\t")
-  f.puts write_n50_table(total_bases, contig_lengths)
 end
 $stderr.puts "Done! (time: #{Time.now - t})"
 
