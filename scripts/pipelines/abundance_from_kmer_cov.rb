@@ -18,16 +18,21 @@ opts = Trollop.options do
 
   Options:
   EOS
-  opt :scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string
+  opt(:scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string,
+      default: '/Users/ryanmoore/sandbox/linear_grinder.scafSeq')
   opt(:blast, 'Location of your blast binary', type: :string,
       default: '/usr/local/bin/blastn')
   opt(:blast_db, 'Path to blast db', type: :string,
       default: '/Users/ryanmoore/sandbox/blast_dbs/all10.fa')
 end
 
-if opts[:scaf_seq].nil?
-  Trollop.die :scaf_seq, "You must enter a scafSeq file name"
-elsif !File.exist? opts[:scaf_seq]
+# if opts[:scaf_seq].nil?
+#   Trollop.die :scaf_seq, "You must enter a scafSeq file name"
+# elsif !File.exist? opts[:scaf_seq]
+#   Trollop.die :scaf_seq, "The scafSeq file must exist"
+# end
+
+if !File.exist? opts[:scaf_seq]
   Trollop.die :scaf_seq, "The scafSeq file must exist"
 end
 
