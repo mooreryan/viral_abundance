@@ -2,10 +2,13 @@
 
 ## reading in the scafSeq file
 
+start_time = Time.now
+
 begin
   require 'trollop'
   require 'parse_fasta'
   require 'shell/executer.rb'
+  require 'descriptive_statistics'
 rescue LoadError => e
   bad_file = e.message.sub(/^cannot load such file -- /, '')
   abort("ERROR: #{e.message}\nTry running: gem install #{bad_file}")
@@ -14,7 +17,15 @@ end
 opts = Trollop.options do
   banner <<-EOS
 
-  This is our fun script!
+  If the scaf_seq file is `my_file.scafSeq` then the output files will
+  be these:
+
+  my_file.n50_table.txt
+  my_file.abun_from_kmer_cov.txt
+  my_file.abun_from_kmer_cov.r
+  my_file.n50_table.pdf
+  my_file.rank_abundance.pdf
+
 
   Options:
   EOS
@@ -56,7 +67,7 @@ def basic_contig_stats(scaf_seq_file)
   FastaFile.open(scaf_seq_file, 'r').each_record do |header, sequence|
     # basic stats
     name, cov = header.split
-    name = name.to_sym
+    name = name
     cov = cov.to_f
     read_len = sequence.length
 
@@ -114,14 +125,14 @@ end
 def top_hit(blast_out)
   hits = {}
   blast_out.split("\n").each do |line|
-    contig, phage, eval, start, stop, length = line.chomp.split("\t")
+    query, tax_hit, eval, start, stop, length = line.chomp.split("\t")
     
-    if hits.has_key?(contig) && length > hits[contig][:length]
-      hits[contig] = { phage: phage, eval: eval, start: start, 
-        stop: stop, length: length }
-    elsif !hits.has_key?(contig)
-      hits[contig] = { phage: phage, eval: eval, start: start, 
-        stop: stop, length: length }
+    if hits.has_key?(query) && length > hits[query][:length]
+      hits[query] = { query: query, tax_hit: tax_hit, eval: eval, 
+        start: start, stop: stop, length: length }
+    elsif !hits.has_key?(query)
+      hits[query] = { query: query, tax_hit: tax_hit, eval: eval, 
+        start: start, stop: stop, length: length }
     end
   end
   hits
@@ -151,6 +162,100 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 ## step 7: get the top hit (based on alignment length)
 t = Time.now
 $stderr.print 'Getting top hits...'
-# { contig => { :phage, :eval, :start, :stop, :length }
+# { query => { :tax_hit, :eval, :start, :stop, :length }
 hits = top_hit(blast_out)
 $stderr.puts "Done! (time: #{Time.now - t})"
+
+t = Time.now
+$stderr.print 'Getting cov stats per tax group...'
+tax_cov = {}
+hits.values.group_by { |record| record[:tax_hit] }.each do |tax, recs|
+  cov_for_this_tax = []
+  recs.each do |rec|
+    cov_for_this_tax << records[rec[:query]][:cov]
+  end
+  tax_cov[tax] = { 
+    mean_cov: cov_for_this_tax.mean,
+    median_cov: cov_for_this_tax.median,
+    sd: cov_for_this_tax.standard_deviation,
+    count: cov_for_this_tax.count }
+end
+$stderr.puts "Done! (time: #{Time.now - t})"
+
+t = Time.now
+$stderr.print 'Printing tax cov stats data...'
+r_data = File.join(fname_map[:dir], 
+                   fname_map[:base] + ".abun_from_kmer_cov.txt")
+File.open(r_data, 'w') do |f|
+  f.puts %w[virus mean.cov median.cov sd count].join("\t")
+  tax_cov.each_pair do |tax, info|
+    tax_string = tax
+      .sub(/^gi.*\| /, '')
+      .sub(/, complete.*$/, '')
+      .sub(/ genomic sequence$/, '') 
+    f.puts [tax_string,
+            info[:mean_cov], 
+            info[:median_cov], 
+            info[:sd], 
+            info[:count]].join("\t")
+  end
+end
+$stderr.puts "Done! (time: #{Time.now - t})"
+
+
+
+n50_pdf_out = File.join(fname_map[:dir], 
+                    fname_map[:base] + ".n50_table.pdf")
+rank_pdf_out = File.join(fname_map[:dir], 
+                    fname_map[:base] + ".rank_abundance.pdf")
+
+t = Time.now
+$stderr.print 'Running R code...'
+r_script =
+"library('ggplot2')
+
+## n50 graph
+pdf(file='#{n50_pdf_out}', width=10, height=7.5)
+n50 <- read.table('#{n50_f}', header=T, sep=\"\\t\")
+
+ggplot(n50, aes(x=level, y=length)) +
+    geom_bar(position=position_dodge(), 
+             stat='identity', fill='dodgerblue2', col='black' ) +
+    xlab('X percent of bases contained in contig of length of at least Y') +
+    ylab('Contig length') +
+    labs(title='Assembly metrics #{opts[:scaf_seq]}') +
+    guides(fill=F) +
+    theme_bw()
+invisible(dev.off())
+
+## rank abundance
+pdf(file='#{rank_pdf_out}', width=10, height=7.5)
+t <- read.table('#{r_data}', header=T, sep=\"\\t\")
+ggplot(t, aes(x=virus, y=mean.cov)) +
+    geom_bar(position=position_dodge(), stat='identity', 
+             fill='dodgerblue2', col='black') +
+    xlab('Virus') +
+    ylab('Relative abundance') +
+    labs(title='Rank abundance #{opts[:scaf_seq]}') +
+    guides(fill=F) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle=45, vjust=0.5, size=8))
+invisible(dev.off())
+"
+
+tmp_r_script = File.join(fname_map[:dir], 
+                         fname_map[:base] + ".abun_from_kmer_cov.r")
+File.open(tmp_r_script, 'w') do |f|
+  f.puts r_script
+end
+
+# run the rcode
+begin
+  Shell.execute!("Rscript #{tmp_r_script}")
+rescue RuntimeError => e
+  # print stderr if bad exit status
+  abort(e.message)
+end
+$stderr.puts "Done! (time: #{Time.now - t})"
+
+$stderr.puts "All done!!! (total time: #{Time.now - start_time})"
