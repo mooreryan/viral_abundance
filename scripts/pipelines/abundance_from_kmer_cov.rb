@@ -21,6 +21,7 @@ opts = Trollop.options do
   be these:
 
   my_file.n50_table.txt
+  my_file.btab
   my_file.abun_from_kmer_cov.txt
   my_file.abun_from_kmer_cov.r
   my_file.n50_table.pdf
@@ -104,11 +105,11 @@ def write_n50_table(total_bases, contig_lengths)
   n50_table
 end
 
-def blast(blast, blast_db, scaf_seq_file)
+def blast(blast, blast_db, scaf_seq_file, outfile)
   blastn = '/usr/bin/blastn'
   blast_cmd = "#{blast} -db #{blast_db} " << 
     "-query #{scaf_seq_file} -outfmt " <<
-    "\"6 qseqid stitle evalue sstart send length bitscore\""
+    "\"6 qseqid stitle evalue sstart send length bitscore\" >#{outfile}"
 
   # run command, exit if errors
   begin
@@ -156,7 +157,9 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 ## step 6: blast the contigs and scaffolds
 t = Time.now
 $stderr.print 'Blasting sequences...'
-blast_out = blast(opts[:blast], opts[:blast_db], opts[:scaf_seq])
+outfile = File.join(fname_map[:dir], fname_map[:base] + '.btab')
+blast(opts[:blast], opts[:blast_db], opts[:scaf_seq], outfile)
+blast_out = File.open(outfile, 'r').read
 $stderr.puts "Done! (time: #{Time.now - t})"
 
 ## step 7: get the top hit (based on alignment length)
