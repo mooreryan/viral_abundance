@@ -36,6 +36,7 @@ opts = Trollop.options do
       default: '/usr/local/bin/blastn')
   opt(:blast_db, 'Path to blast db', type: :string,
       default: '/Users/ryanmoore/sandbox/blast_dbs/all10.fa')
+  opt(:outdir, 'Output directory', type: :string)
 end
 
 # if opts[:scaf_seq].nil?
@@ -51,6 +52,13 @@ end
 if !File.exist? opts[:blast_db]
   Trollop.die :blast_db, "The specified file doesn't exist!"
 end
+
+if opts[:outdir].nil?
+  Trollop.die :outdir, "You must enter a folder name"
+elsif !File.exist? opts[:outdir]
+  Trollop.die :outdir, "The file must exist"
+end
+
 
 def parse_fname(fname)
   { dir: File.dirname(fname), 
@@ -147,7 +155,7 @@ $stderr.print 'Calculating assembly stats...'
 records, total_bases, contig_lengths = basic_contig_stats(opts[:scaf_seq])
 
 # write n50 table to disk
-n50_f = File.join(fname_map[:dir], "#{fname_map[:base]}.n50_table.txt")
+n50_f = File.join(opts[:outdir], "#{fname_map[:base]}.n50_table.txt")
 File.open(n50_f, 'w') do |f|
   f.puts %w[level length count].join("\t")
   f.puts write_n50_table(total_bases, contig_lengths)
@@ -157,7 +165,7 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 ## step 6: blast the contigs and scaffolds
 t = Time.now
 $stderr.print 'Blasting sequences...'
-outfile = File.join(fname_map[:dir], fname_map[:base] + '.btab')
+outfile = File.join(opts[:outdir], fname_map[:base] + '.btab')
 blast(opts[:blast], opts[:blast_db], opts[:scaf_seq], outfile)
 blast_out = File.open(outfile, 'r').read
 $stderr.puts "Done! (time: #{Time.now - t})"
@@ -187,7 +195,7 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 
 t = Time.now
 $stderr.print 'Printing tax cov stats data...'
-r_data = File.join(fname_map[:dir], 
+r_data = File.join(opts[:outdir], 
                    fname_map[:base] + ".abun_from_kmer_cov.txt")
 File.open(r_data, 'w') do |f|
   f.puts %w[virus mean.cov median.cov sd count].join("\t")
@@ -207,9 +215,9 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 
 
 
-n50_pdf_out = File.join(fname_map[:dir], 
+n50_pdf_out = File.join(opts[:outdir], 
                     fname_map[:base] + ".n50_table.pdf")
-rank_pdf_out = File.join(fname_map[:dir], 
+rank_pdf_out = File.join(opts[:outdir], 
                     fname_map[:base] + ".rank_abundance.pdf")
 
 t = Time.now
@@ -246,7 +254,7 @@ ggplot(t, aes(x=virus, y=mean.cov)) +
 invisible(dev.off())
 "
 
-tmp_r_script = File.join(fname_map[:dir], 
+tmp_r_script = File.join(opts[:outdir], 
                          fname_map[:base] + ".abun_from_kmer_cov.r")
 File.open(tmp_r_script, 'w') do |f|
   f.puts r_script
