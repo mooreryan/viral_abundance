@@ -74,13 +74,14 @@ fname_map = parse_fname(opts[:scaf_seq])
 # will grab kmer size if the scaf_seq file name is of the form
 # simseq_119.scafSeq where 119 is the kmer size
 begin
-  grinder_program = fname[:base].match(/(.*)_(\d+)\.scafSeq/)[1]
-  kmer_size = fname[:base].match(/(.*)_(\d+)\.scafSeq/)[2]
+  the_match = opts[:scaf_seq].match(/.*\/(.*)_(\d+)\.scafSeq/)
+  grinder_program = the_match[1]
+  kmer_size = the_match[2]
 rescue NoMethodError => e
   $stderr.puts e.message
   abort("Improrper file name format for #{opts[:scaf_seq]}")
 end
-  
+
 def basic_contig_stats(scaf_seq_file)
   total_bases = 0
   contig_lengths = []
@@ -213,7 +214,7 @@ $stderr.print 'Printing tax cov stats data...'
 r_data = File.join(opts[:outdir], 
                    fname_map[:base] + ".abun_from_kmer_cov.txt")
 File.open(r_data, 'w') do |f|
-  f.puts %w[virus mean.cov median.cov sd count].join("\t")
+  f.puts %w[virus program kmer.size mean.cov median.cov sd count].join("\t")
   tax_cov.each_pair do |tax, info|
     tax_string = tax
       .sub(/^gi.*\| /, '')
