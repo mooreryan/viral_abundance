@@ -27,6 +27,11 @@ opts = Trollop.options do
   my_file.n50_table.pdf
   my_file.rank_abundance.pdf
 
+  Now the scafSew file must be in the format
+  ginder_program_kmerSize.scafSeq, in order to populate the kmer size
+  and the grinder program columns in the abun_from_kmer_cov.txt
+  file. Else they will be filled with unknown.
+
 
   Options:
   EOS
@@ -67,7 +72,16 @@ def parse_fname(fname)
 end
 
 fname_map = parse_fname(opts[:scaf_seq])
-
+# will grab kmer size if the scaf_seq file name is of the form
+# simseq_119.scafSeq where 119 is the kmer size
+begin
+  grinder_program = fname[:base].match(/(.*)_(\d+)\.scafSeq/)[1]
+  kmer_size = fname[:base].match(/(.*)_(\d+)\.scafSeq/)[2]
+rescue NoMethodError => e
+  $stderr.puts e.message
+  abort("Improrper file name format for #{opts[:scaf_seq]}")
+end
+  
 def basic_contig_stats(scaf_seq_file)
   total_bases = 0
   contig_lengths = []
@@ -207,6 +221,8 @@ File.open(r_data, 'w') do |f|
       .sub(/, complete.*$/, '')
       .sub(/ genomic sequence$/, '') 
     f.puts [tax_string,
+            grinder_program,
+            kmer_size,
             info[:mean_cov], 
             info[:median_cov], 
             info[:sd], 
