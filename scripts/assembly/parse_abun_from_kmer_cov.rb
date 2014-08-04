@@ -24,9 +24,9 @@ ARGF.each do |line|
 end
 
 # should do the stats on the raw data
-puts "tax\tmean.cov\tsd\tmedian.cov\t05\t95"
+puts "tax\tmean.cov\tsd\tmedian.cov\t05\t95\tcount"
 tax_info.sort.each do |tax, info|
   means = info.map { |i| i[:mean].to_i }
   puts [tax, means.mean, means.standard_deviation, means.median, 
-        means.percentile(5), means.percentile(95)].join("\t")
+        means.percentile(5), means.percentile(95), info.count].join("\t")
 end
