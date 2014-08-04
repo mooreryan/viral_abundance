@@ -30,8 +30,7 @@ opts = Trollop.options do
   Now the scafSew file must be in the format
   ginder_program_kmerSize.scafSeq, in order to populate the kmer size
   and the grinder program columns in the abun_from_kmer_cov.txt
-  file. Else they will be filled with unknown.
-
+  file. Might die if the format is incorrect.
 
   Options:
   EOS
