@@ -17,30 +17,38 @@ end
 opts = Trollop.options do
   banner <<-EOS
 
-  If the scaf_seq file is `my_file.scafSeq` then the output files will
+  If the scaf_seq file is `test_127.scafSeq` then the output files will
   be these:
 
-  my_file.n50_table.txt
-  my_file.btab
-  my_file.abun_from_kmer_cov.txt
-  my_file.abun_from_kmer_cov.r
-  my_file.n50_table.pdf
-  my_file.rank_abundance.pdf
+  test_127.abun_from_kmer_cov.r
+  test_127.abun_from_kmer_cov.txt
+  test_127.btab
+  test_127.contigs_kept.txt
+  test_127.contigs_rejected.txt
+  test_127.n50_table.pdf
+  test_127.n50_table.txt
+  test_127.rank_abundance.pdf
+  test_127.reference_coverage.txt
 
-  Now the scafSew file must be in the format
+  Now the scafSeq file must be in the format
   ginder_program_kmerSize.scafSeq, in order to populate the kmer size
   and the grinder program columns in the abun_from_kmer_cov.txt
   file. Might die if the format is incorrect.
 
   Options:
   EOS
+  opt(:references, 'The fasta file of reference sequences',
+      type: :string, default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/inputs/all_10.fa')
   opt(:scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string,
-      default: '/Users/ryanmoore/sandbox/test.scafSeq')
+      default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/inputs/test_127.scafSeq')
   opt(:blast, 'Location of your blast binary', type: :string,
       default: '/usr/local/bin/blastn')
   opt(:blast_db, 'Path to blast db', type: :string,
-      default: '/Users/ryanmoore/sandbox/blast_dbs/all10.fa')
-  opt(:outdir, 'Output directory', type: :string)
+      default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/blast_db/all10.fa')
+  opt(:outdir, 'Output directory', type: :string,
+      default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/output')
+  opt(:reduce_coverage, 'Flag true to run coverage reduction algorithm',
+      type: :boolean, default: true)
 end
 
 # if opts[:scaf_seq].nil?
@@ -189,14 +197,115 @@ $stderr.puts "Done! (time: #{Time.now - t})"
 ## step 7: get the top hit (based on alignment length)
 t = Time.now
 $stderr.print 'Getting top hits...'
-# { query => { :tax_hit, :eval, :start, :stop, :length }
+# each value is basically a top hit from the btab file.
+# { query => { :query, :tax_hit, :eval, :start, :stop, :length } }
 hits = top_hit(blast_out)
 $stderr.puts "Done! (time: #{Time.now - t})"
 
+def percent_covered(array)
+  (array.count - array.count(0)) / array.count.to_f
+end
+
+# TODO get reference lengths here
+# { reference_name => length }
+ref_lengths = {}
+FastaFile.open(opts[:references], 'r').each_record do |header, sequence|
+  if ref_lengths.has_key?(header)
+    abort("ERROR: #{header} isn't uniuqe in #{opts[:references]}")
+  else
+    ref_lengths[header] = sequence.length
+  end
+end
+
+def clean_tax_string(tax_str)
+  tax_str
+    .sub(/^gi.*\| /, '')
+    .sub(/, complete.*$/, '')
+    .sub(/ genomic sequence$/, '')
+end
+
+cov_file = File.join(opts[:outdir], 
+                     "#{fname_map[:base]}.reference_coverage.txt")
+kept_file = File.join(opts[:outdir], 
+                      "#{fname_map[:base]}.contigs_kept.txt")
+rejected_file = 
+  File.join(opts[:outdir], 
+            "#{fname_map[:base]}.contigs_rejected.txt")
+cov_f = File.open(cov_file, 'w')
+kept_f = File.open(kept_file, 'w')
+rejected_f = File.open(rejected_file, 'w')
+cov_f.puts "name\tbase\tcov"
+
+if opts[:reduce_coverage]
+  begin
+    ## step 7.5 'coverage reduction' algorithm
+    hits.values.group_by { |record| record[:tax_hit] }
+      .each do |tax, recs|
+      tax_string = clean_tax_string(tax)
+      # fill array with zeros for length of reference sequence
+      ref_coverage = Array.new(ref_lengths[tax], 0)
+
+      # make reference sequence coverage data structure
+      # tax is the value of tax_hit from hits
+      # recs are all the top hits to this tax group
+      sorted_records = recs.sort_by { |record| record[:length] }
+      sorted_records.each do |record|
+        if percent_covered(ref_coverage) > 0.90
+          break
+        else
+          start = record[:start].to_i
+          stop = record[:stop].to_i
+          start, stop = stop, start if stop < start
+
+          # slice the region
+          region = (start..stop)
+          cov_of_region_on_ref = ref_coverage[region]
+          if percent_covered(cov_of_region_on_ref) < 0.5
+            # add a good flag to hits
+            hits[record[:query]][:keep] = true
+
+            # add 1 to the coverage at the proper positions
+            region.each do |posn|
+              ref_coverage[posn] += 1
+            end
+          else
+            hits[record[:query]][:keep] = false
+          end
+        end
+      end
+      ref_coverage.each_with_index do |cov, idx|
+        base = idx + 1
+        cov_f.puts [tax_string, base, cov].join("\t")
+      end
+    end
+    # hits will now be
+    # { query => { :query, :tax_hit, :eval, :start, :stop, :length } }
+    kept = hits.values.select { |hit| hit[:keep] }
+    rejected = hits.values.reject { |hit| hit[:keep] }
+    kept.each do |info|
+      info.each_pair do |k, v|
+        kept_f.puts "#{k}\t#{v}"
+      end
+    end
+    rejected.each do |info|
+      info.each_pair do |k, v|
+        rejected_f.puts "#{k}\t#{v}"
+      end
+    end
+    # hits now only contains the ones flagged with keep
+    hits = kept
+  ensure
+    cov_f.close
+    kept_f.close
+    rejected_f.close
+  end
+end
+
+## stats per tax group
 t = Time.now
 $stderr.print 'Getting cov stats per tax group...'
 tax_cov = {}
-hits.values.group_by { |record| record[:tax_hit] }.each do |tax, recs|
+hits.group_by { |record| record[:tax_hit] }.each do |tax, recs|
   cov_for_this_tax = []
   recs.each do |rec|
     cov_for_this_tax << records[rec[:query]][:cov]
@@ -214,12 +323,10 @@ $stderr.print 'Printing tax cov stats data...'
 r_data = File.join(opts[:outdir], 
                    fname_map[:base] + ".abun_from_kmer_cov.txt")
 File.open(r_data, 'w') do |f|
-  f.puts %w[virus program kmer.size mean.cov median.cov sd count].join("\t")
+  f.puts(%w[virus program kmer.size mean.cov median.cov sd count]
+           .join("\t"))
   tax_cov.each_pair do |tax, info|
-    tax_string = tax
-      .sub(/^gi.*\| /, '')
-      .sub(/, complete.*$/, '')
-      .sub(/ genomic sequence$/, '') 
+    tax_string = clean_tax_string(tax)
     f.puts [tax_string,
             grinder_program,
             kmer_size,
