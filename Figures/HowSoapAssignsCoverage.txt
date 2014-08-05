@@ -1,0 +1,57 @@
+fprintf ( fo, ">scaffold%d %4.1f\n", index, ( double ) cvgSum / lenSum );
+
+// Initial output of coverage in the scaf seq file.
+// The uses the equation = cvgSum / lenSum  (below)
+
+cvgSum += contig_array[actg->ctgID].length * contig_array[actg->ctgID].cvg;
+
+// cvgSum is an value determined from an iteritive loop of all sequences (actg) going into a scaffold (contig_array.*)
+// The length of the sequences in the contig are used to create the initial coverage for the contigs
+// by providing an average of the with the total length and total average coverage
+
+lenSum += contig_array[actg->ctgID].length;
+
+contig_array = ( CONTIG * ) ckalloc ( ( num_all + 1 ) * sizeof ( CONTIG ) );
+
+if ( stack.size() == 2 )
+		{
+			long_edge_buf.cvg = from_node->edge->edge_cov;
+		}
+		else
+		{
+			stacked_node2 * nd_tmp = from_node;
+
+			while ( nd_tmp && nd_tmp->edge )
+			{
+				symbol += nd_tmp->edge->edge_cov * ( nd_tmp->edge->len + 1 );
+				nd_tmp = nd_tmp->next;
+			}
+
+			int cvg = symbol / ( full_edge.size() - K_size );
+			long_edge_buf.cvg = cvg;
+		}
+
+
+******** Easy Interperetation ********
+
+Sum of each contig in the scaffold    (  Coverage * Length  )
+                                        -------------------
+                                               Length
+
+******** Sample ********
+
+
+look for circumspec for how phaccs and contig spectra compare.
+write a paragraph on how coverage from the about code compares to phaccs and catchall.
+
+This code provides a coverage based on initial coverage of a contig from the reads in it.
+scaffold coverage is provided by the average coverage of contigs based on length from the
+total number of contigs within a scaffold.  by iteritivly summing the average length contigs times the
+coverage of those contives and dividin by the iteritive length average of the scaffold a total coverage is formed.
+
+phaccs:
+contig spectra = Single array matrix where contigs are assembled from reads.  The number of new contigs
+from each assembly is the value inserted into the matrix. For each subsequent assembly the contigs from
+the last assembly are used and a new value is added to the matrix.  As the an assembly is performed and
+forms no new contigs, then the value becomes zero.  replicates are done after the assembly to ensure no
+remaining values are added.
