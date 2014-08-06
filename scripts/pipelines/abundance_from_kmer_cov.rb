@@ -300,26 +300,24 @@ if opts[:reduce_coverage]
     kept_f.close
     rejected_f.close
   end
+else
+  hits = hits.values
 end
 
 ## stats per tax group
 t = Time.now
 $stderr.print 'Getting cov stats per tax group...'
 tax_cov = {}
-begin
-  hits.group_by { |record| record[:tax_hit] }.each do |tax, recs|
-    cov_for_this_tax = []
-    recs.each do |rec|
-      cov_for_this_tax << records[rec[:query]][:cov]
-    end
-    tax_cov[tax] = { 
-      mean_cov: cov_for_this_tax.mean,
-      median_cov: cov_for_this_tax.median,
-      sd: cov_for_this_tax.standard_deviation,
-      count: cov_for_this_tax.count }
+hits.group_by { |record| record[:tax_hit] }.each do |tax, recs|
+  cov_for_this_tax = []
+  recs.each do |rec|
+    cov_for_this_tax << records[rec[:query]][:cov]
   end
-rescue TypeError => e
-  p hits.first
+  tax_cov[tax] = { 
+    mean_cov: cov_for_this_tax.mean,
+    median_cov: cov_for_this_tax.median,
+    sd: cov_for_this_tax.standard_deviation,
+    count: cov_for_this_tax.count }
 end
 $stderr.puts "Done! (time: #{Time.now - t})"
 
