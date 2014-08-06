@@ -38,13 +38,13 @@ opts = Trollop.options do
   Options:
   EOS
   opt(:references, 'The fasta file of reference sequences',
-      type: :string, default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/inputs/all_10.fa')
+      type: :string, default: '/home/moorer/public/artificial_metagenomes/sequences/fastas/genomes/all_10.fa')
   opt(:scaf_seq, 'The scafSeq file from SOAPdenovo', type: :string,
       default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/inputs/test_127.scafSeq')
   opt(:blast, 'Location of your blast binary', type: :string,
-      default: '/usr/local/bin/blastn')
+      default: '/usr/bin/blastn')
   opt(:blast_db, 'Path to blast db', type: :string,
-      default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/blast_db/all10.fa')
+      default: '/home/moorer/public/artificial_metagenomes/blast_dbs/all10.fa')
   opt(:outdir, 'Output directory', type: :string,
       default: '/Users/ryanmoore/projects/steve/viral_abundance/test_files/output')
   opt(:reduce_coverage, 'Flag true to run coverage reduction algorithm',
@@ -306,16 +306,20 @@ end
 t = Time.now
 $stderr.print 'Getting cov stats per tax group...'
 tax_cov = {}
-hits.group_by { |record| record[:tax_hit] }.each do |tax, recs|
-  cov_for_this_tax = []
-  recs.each do |rec|
-    cov_for_this_tax << records[rec[:query]][:cov]
+begin
+  hits.group_by { |record| record[:tax_hit] }.each do |tax, recs|
+    cov_for_this_tax = []
+    recs.each do |rec|
+      cov_for_this_tax << records[rec[:query]][:cov]
+    end
+    tax_cov[tax] = { 
+      mean_cov: cov_for_this_tax.mean,
+      median_cov: cov_for_this_tax.median,
+      sd: cov_for_this_tax.standard_deviation,
+      count: cov_for_this_tax.count }
   end
-  tax_cov[tax] = { 
-    mean_cov: cov_for_this_tax.mean,
-    median_cov: cov_for_this_tax.median,
-    sd: cov_for_this_tax.standard_deviation,
-    count: cov_for_this_tax.count }
+rescue TypeError => e
+  p hits.first
 end
 $stderr.puts "Done! (time: #{Time.now - t})"
 
