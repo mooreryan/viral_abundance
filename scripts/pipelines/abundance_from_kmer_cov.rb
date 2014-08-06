@@ -254,8 +254,8 @@ if opts[:reduce_coverage]
         if percent_covered(ref_coverage) > 0.90
           break
         else
-          start = record[:start].to_i
-          stop = record[:stop].to_i
+          start = record[:start].to_i - 1
+          stop = record[:stop].to_i - 1
           start, stop = stop, start if stop < start
 
           # slice the region
