@@ -225,20 +225,20 @@ def clean_tax_string(tax_str)
     .sub(/ genomic sequence$/, '')
 end
 
-cov_file = File.join(opts[:outdir], 
-                     "#{fname_map[:base]}.reference_coverage.txt")
-kept_file = File.join(opts[:outdir], 
-                      "#{fname_map[:base]}.contigs_kept.txt")
-rejected_file = 
-  File.join(opts[:outdir], 
-            "#{fname_map[:base]}.contigs_rejected.txt")
-cov_f = File.open(cov_file, 'w')
-kept_f = File.open(kept_file, 'w')
-rejected_f = File.open(rejected_file, 'w')
-cov_f.puts "name\tbase\tcov"
-
 if opts[:reduce_coverage]
   begin
+    cov_file = File.join(opts[:outdir], 
+                         "#{fname_map[:base]}.reference_coverage.txt")
+    kept_file = File.join(opts[:outdir], 
+                          "#{fname_map[:base]}.contigs_kept.txt")
+    rejected_file = 
+      File.join(opts[:outdir], 
+                "#{fname_map[:base]}.contigs_rejected.txt")
+    cov_f = File.open(cov_file, 'w')
+    kept_f = File.open(kept_file, 'w')
+    rejected_f = File.open(rejected_file, 'w')
+    cov_f.puts "name\tbase\tcov"
+
     ## step 7.5 'coverage reduction' algorithm
     hits.values.group_by { |record| record[:tax_hit] }
       .each do |tax, recs|
