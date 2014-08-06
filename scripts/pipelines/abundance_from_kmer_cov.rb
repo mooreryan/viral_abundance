@@ -82,7 +82,8 @@ fname_map = parse_fname(opts[:scaf_seq])
 # will grab kmer size if the scaf_seq file name is of the form
 # simseq_119.scafSeq where 119 is the kmer size
 begin
-  the_match = opts[:scaf_seq].match(/.*\/(.*)_(\d+)\.scafSeq/)
+  
+  the_match = fname_map[:base].match(/(.*)_(\d+)/)
   grinder_program = the_match[1]
   kmer_size = the_match[2]
 rescue NoMethodError => e
